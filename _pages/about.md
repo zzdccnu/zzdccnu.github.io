@@ -13,8 +13,8 @@ profile:
     <p>湖北省武汉市洪山区</p>
     <p>雄楚大道382号, 430079</p>
 
-selected_papers: true # includes a list of papers marked as "selected={true}"
-social: true # includes social icons at the bottom of the page
+selected_papers: false # includes a list of papers marked as "selected={true}"
+social: false # includes social icons at the bottom of the page
 
 announcements:
   enabled: true # includes a list of news items
