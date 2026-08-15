@@ -143,15 +143,17 @@ latest_posts:
   }
 
   .gh-months {
-    display: grid;
-    gap: 3px;
-    height: 20px;
+    position: relative;
+    height: 22px;
     margin-left: 36px;
     font-size: 11px;
+    line-height: 16px;
     color: var(--global-text-color-light);
   }
 
   .gh-months span {
+    position: absolute;
+    top: 0;
     white-space: nowrap;
   }
 
@@ -325,7 +327,6 @@ latest_posts:
       const weekCount = Math.ceil(totalCells / 7);
 
       grid.style.gridTemplateColumns = `repeat(${weekCount}, 12px)`;
-      months.style.gridTemplateColumns = `repeat(${weekCount}, 12px)`;
       chart.style.minWidth = `${36 + weekCount * 15}px`;
 
       for (let i = 0; i < leadingDays; i++) {
@@ -349,7 +350,7 @@ latest_posts:
             timeZone: "UTC"
           });
 
-          monthLabel.style.gridColumn = `${week} / span 4`;
+          monthLabel.style.left = `${(week - 1) * 15}px`;
           months.appendChild(monthLabel);
           previousMonth = month;
         }
