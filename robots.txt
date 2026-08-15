@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://koishi.site/al-folio/sitemap.xml
+Sitemap: https://koishi.site/sitemap.xml
