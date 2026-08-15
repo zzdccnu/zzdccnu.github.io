@@ -39,36 +39,345 @@ latest_posts:
 
 在这个主页上，我将不定期分享我最新的科研进展、项目代码以及学习心得。如果你对我的研究方向感兴趣，或者有任何想要探讨的学术问题，非常欢迎通过底部的联系方式与我交流！
 
-<div id="github-contributions-section">
-  <h2>GitHub Contributions</h2>
-
-  <div class="calendar">
-    Loading GitHub contributions...
+<section id="github-contributions-section" class="gh-activity">
+  <div class="gh-activity-title">
+    <h2>GitHub Contributions</h2>
+    <a href="https://github.com/koishi514-Z" target="_blank" rel="noopener">
+      @koishi514-Z ↗
+    </a>
   </div>
-</div>
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/github-calendar@2.3.4/dist/github-calendar-responsive.css"
-/>
+  <div class="gh-card">
+    <div id="gh-total" class="gh-summary">Loading contributions...</div>
 
-<script src="https://unpkg.com/github-calendar@2.3.4/dist/github-calendar.min.js"></script>
+    <div class="gh-scroll">
+      <div id="gh-chart" class="gh-chart">
+        <div id="gh-months" class="gh-months"></div>
+
+        <div class="gh-chart-body">
+          <div class="gh-weekdays">
+            <span></span>
+            <span>Mon</span>
+            <span></span>
+            <span>Wed</span>
+            <span></span>
+            <span>Fri</span>
+            <span></span>
+          </div>
+
+          <div id="gh-grid" class="gh-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gh-footer">
+      <span>Less</span>
+      <span class="gh-legend-cell" data-level="0"></span>
+      <span class="gh-legend-cell" data-level="1"></span>
+      <span class="gh-legend-cell" data-level="2"></span>
+      <span class="gh-legend-cell" data-level="3"></span>
+      <span class="gh-legend-cell" data-level="4"></span>
+      <span>More</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .gh-activity {
+    margin-top: 2.5rem;
+  }
+
+  .gh-activity-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .gh-activity-title h2 {
+    margin: 0;
+  }
+
+  .gh-activity-title a {
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .gh-card {
+    --gh-0: #ebedf0;
+    --gh-1: #9be9a8;
+    --gh-2: #40c463;
+    --gh-3: #30a14e;
+    --gh-4: #216e39;
+
+    padding: 1rem;
+    color: var(--global-text-color);
+    background: var(--global-bg-color);
+    border: 1px solid var(--global-divider-color);
+    border-radius: 10px;
+  }
+
+  html[data-theme="dark"] .gh-card {
+    --gh-0: #21262d;
+    --gh-1: #0e4429;
+    --gh-2: #006d32;
+    --gh-3: #26a641;
+    --gh-4: #39d353;
+  }
+
+  .gh-summary {
+    margin-bottom: 0.9rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .gh-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.4rem;
+  }
+
+  .gh-chart {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .gh-months {
+    display: grid;
+    gap: 3px;
+    height: 20px;
+    margin-left: 36px;
+    font-size: 11px;
+    color: var(--global-text-color-light);
+  }
+
+  .gh-months span {
+    white-space: nowrap;
+  }
+
+  .gh-chart-body {
+    display: flex;
+    gap: 8px;
+  }
+
+  .gh-weekdays {
+    display: grid;
+    grid-template-rows: repeat(7, 12px);
+    gap: 3px;
+    width: 28px;
+    font-size: 10px;
+    line-height: 12px;
+    color: var(--global-text-color-light);
+  }
+
+  .gh-grid {
+    display: grid;
+    grid-template-rows: repeat(7, 12px);
+    grid-auto-flow: column;
+    grid-auto-columns: 12px;
+    gap: 3px;
+  }
+
+  .gh-cell,
+  .gh-placeholder,
+  .gh-legend-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  .gh-placeholder {
+    visibility: hidden;
+  }
+
+  .gh-cell {
+    background: var(--gh-0);
+    outline: 1px solid color-mix(in srgb, var(--global-divider-color) 60%, transparent);
+    outline-offset: -1px;
+    transition:
+      transform 0.12s ease,
+      filter 0.12s ease;
+  }
+
+  .gh-cell:hover {
+    z-index: 1;
+    transform: scale(1.35);
+    filter: brightness(1.08);
+  }
+
+  .gh-cell[data-level="0"],
+  .gh-legend-cell[data-level="0"] {
+    background: var(--gh-0);
+  }
+
+  .gh-cell[data-level="1"],
+  .gh-legend-cell[data-level="1"] {
+    background: var(--gh-1);
+  }
+
+  .gh-cell[data-level="2"],
+  .gh-legend-cell[data-level="2"] {
+    background: var(--gh-2);
+  }
+
+  .gh-cell[data-level="3"],
+  .gh-legend-cell[data-level="3"] {
+    background: var(--gh-3);
+  }
+
+  .gh-cell[data-level="4"],
+  .gh-legend-cell[data-level="4"] {
+    background: var(--gh-4);
+  }
+
+  .gh-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 5px;
+    margin-top: 0.75rem;
+    font-size: 11px;
+    color: var(--global-text-color-light);
+  }
+
+  .gh-error {
+    color: #cf222e;
+  }
+
+  @media (max-width: 576px) {
+    .gh-card {
+      padding: 0.8rem;
+    }
+
+    .gh-activity-title {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+  }
+</style>
 
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", async function () {
+    const username = "koishi514-Z";
     const section = document.getElementById("github-contributions-section");
     const article = document.querySelector(".post article");
+    const grid = document.getElementById("gh-grid");
+    const months = document.getElementById("gh-months");
+    const totalElement = document.getElementById("gh-total");
+    const chart = document.getElementById("gh-chart");
 
-    // 将贡献图移动到首页所有模块的最底部
+    // 移动到首页所有模块之后
     if (section && article) {
       article.appendChild(section);
     }
 
-    GitHubCalendar(".calendar", "koishi514-Z", {
-      responsive: true,
-      tooltips: true,
-      global_stats: false,
-      cache: 86400
-    });
+    const cacheKey = "gh-contributions-" + username;
+    const cacheDuration = 24 * 60 * 60 * 1000;
+
+    async function loadContributionData() {
+      const cached = localStorage.getItem(cacheKey);
+
+      if (cached) {
+        const parsed = JSON.parse(cached);
+
+        if (Date.now() - parsed.timestamp < cacheDuration) {
+          return parsed.data;
+        }
+      }
+
+      const response = await fetch(
+        "https://github-contributions-api.jogruber.de/v4/" +
+          encodeURIComponent(username) +
+          "?y=last"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load GitHub contributions");
+      }
+
+      const data = await response.json();
+
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          timestamp: Date.now(),
+          data: data
+        })
+      );
+
+      return data;
+    }
+
+    function renderCalendar(data) {
+      grid.innerHTML = "";
+      months.innerHTML = "";
+
+      const contributions = data.contributions || [];
+
+      if (!contributions.length) {
+        throw new Error("No contribution data");
+      }
+
+      const firstDate = new Date(contributions[0].date + "T00:00:00Z");
+      const leadingDays = firstDate.getUTCDay();
+      const totalCells = leadingDays + contributions.length;
+      const weekCount = Math.ceil(totalCells / 7);
+
+      grid.style.gridTemplateColumns = `repeat(${weekCount}, 12px)`;
+      months.style.gridTemplateColumns = `repeat(${weekCount}, 12px)`;
+      chart.style.minWidth = `${36 + weekCount * 15}px`;
+
+      for (let i = 0; i < leadingDays; i++) {
+        const placeholder = document.createElement("span");
+        placeholder.className = "gh-placeholder";
+        grid.appendChild(placeholder);
+      }
+
+      let previousMonth = -1;
+
+      contributions.forEach(function (item, index) {
+        const date = new Date(item.date + "T00:00:00Z");
+        const month = date.getUTCMonth();
+
+        if (month !== previousMonth) {
+          const monthLabel = document.createElement("span");
+          const week = Math.floor((leadingDays + index) / 7) + 1;
+
+          monthLabel.textContent = date.toLocaleString("en-US", {
+            month: "short",
+            timeZone: "UTC"
+          });
+
+          monthLabel.style.gridColumn = `${week} / span 4`;
+          months.appendChild(monthLabel);
+          previousMonth = month;
+        }
+
+        const cell = document.createElement("span");
+        cell.className = "gh-cell";
+        cell.dataset.level = item.level;
+        cell.title =
+          `${item.count} contribution${item.count === 1 ? "" : "s"} on ${item.date}`;
+
+        grid.appendChild(cell);
+      });
+
+      const total = contributions.reduce(function (sum, item) {
+        return sum + item.count;
+      }, 0);
+
+      totalElement.textContent =
+        `${total} contribution${total === 1 ? "" : "s"} in the last year`;
+    }
+
+    try {
+      const data = await loadContributionData();
+      renderCalendar(data);
+    } catch (error) {
+      totalElement.textContent = "Unable to load GitHub contributions.";
+      totalElement.classList.add("gh-error");
+      console.error(error);
+    }
   });
 </script>
