@@ -38,3 +38,37 @@ latest_posts:
 在科研之外，我也积极参与各类学科竞赛，曾获得第十八届全国大学生计算机设计大赛国家级二等奖、第七届全球校园人工智能算法精英大赛国家级三等奖等多项荣誉。生活中的我热爱交流与分享，积极参与各类会议活动与各种志愿活动。
 
 在这个主页上，我将不定期分享我最新的科研进展、项目代码以及学习心得。如果你对我的研究方向感兴趣，或者有任何想要探讨的学术问题，非常欢迎通过底部的联系方式与我交流！
+
+<div id="github-contributions-section">
+  <h2>GitHub Contributions</h2>
+
+  <div class="calendar">
+    Loading GitHub contributions...
+  </div>
+</div>
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/github-calendar@2.3.4/dist/github-calendar-responsive.css"
+/>
+
+<script src="https://unpkg.com/github-calendar@2.3.4/dist/github-calendar.min.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const section = document.getElementById("github-contributions-section");
+    const article = document.querySelector(".post article");
+
+    // 将贡献图移动到首页所有模块的最底部
+    if (section && article) {
+      article.appendChild(section);
+    }
+
+    GitHubCalendar(".calendar", "koishi514-Z", {
+      responsive: true,
+      tooltips: true,
+      global_stats: false,
+      cache: 86400
+    });
+  });
+</script>
