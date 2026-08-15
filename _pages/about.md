@@ -6,7 +6,7 @@ subtitle: <a href='#'>Affiliations</a>. 华中师范大学 · 数字媒体技术
 
 profile:
   align: right
-  image: prof_pic.jpg
+  image: prof_pic.png
   image_circular: false # crops the image to make it circular
   more_info: >
     <p>华中师范大学</p>
