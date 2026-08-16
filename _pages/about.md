@@ -83,6 +83,14 @@ latest_posts:
 </section>
 
 <style>
+  #github-contributions-section {
+    display: none;
+  }
+
+  #github-contributions-section.gh-mounted {
+    display: block;
+  }
+
   .gh-activity {
     margin-top: 2.5rem;
   }
@@ -272,6 +280,7 @@ latest_posts:
     // 移动到首页所有模块之后
     if (section && article) {
       article.appendChild(section);
+      section.classList.add("gh-mounted");
     }
 
     const cacheKey = "gh-contributions-" + username;
