@@ -48,3 +48,7 @@ html[data-theme="dark"] body {
     ),
     url("{{ '/assets/img/background.jpg' | relative_url }}") !important;
 }
+
+footer[role="contentinfo"] {
+  display: none !important;
+}
