@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-目前我在某华五院校当科研实习生，目标一区顶刊.
+目前我在某华五院校当科研实习生。
