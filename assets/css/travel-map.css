@@ -1,4 +1,4 @@
-/* Footprints v2 — isolated from al-folio's global button, heading and form rules. */
+/* Footprints v3 — dual engine, AMap China + MapLibre world. */
 #travel-app.ft-app {
   box-sizing: border-box;
   position: relative;
@@ -33,13 +33,6 @@
 #travel-app .ft-demo-notice code { color: #61dbf3; overflow-wrap: anywhere; font-size: .78rem; }
 #travel-app .ft-layout { display: grid; grid-template-columns: minmax(0, 1.66fr) minmax(285px, .94fr); gap: 14px; align-items: stretch; }
 #travel-app .ft-map-frame { height: 640px; position: relative; isolation: isolate; overflow: hidden; min-width: 0; border: 1px solid var(--ft-stroke); background: #081923; border-radius: 15px; box-shadow: 0 9px 36px #00000012; }
-#travel-app #ft-map { height: 100%; width: 100%; background: radial-gradient(circle at 60% 40%, #123645, #071b2b); touch-action: pan-x pan-y; }
-#travel-app .ft-popup { display: flex; flex-direction: column; gap: 4px; min-width: 90px; }
-#travel-app .ft-popup strong { font-size: .99rem; }
-#travel-app .ft-popup span, #travel-app .ft-popup small { color: #abc9d9; font-size: .77rem; }
-#travel-app .ft-map-dot { filter: drop-shadow(0 0 4px #04d3e4) drop-shadow(0 0 9px #04d3e499); }
-#travel-app .ft-map-label { background: none; border: 0; color: #f0fbff; font-weight: 700; font-size: 12px; white-space: nowrap; text-shadow: 0 1px 5px #00171d, 0 2px 9px #00171d, 0 0 10px #00171d; translate: -50% -19px; opacity: 0; transition: opacity .12s ease; pointer-events: none; }
-#travel-app .ft-map-label.is-visible { opacity: 1; }
 #travel-app .ft-map-top { position: absolute; z-index: 800; top: 15px; left: 15px; right: 15px; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
 #travel-app .ft-legend, #travel-app button.ft-map-action { pointer-events: auto; border: 1px solid #426278 !important; background: #0e293bdc !important; border-radius: 9px !important; color: #e8f8fb !important; font-size: .74rem !important; line-height: 1.15 !important; backdrop-filter: blur(9px); box-shadow: 0 3px 18px #00000016; }
 #travel-app .ft-legend { display: flex; align-items: center; gap: 9px; padding: 11px 13px; white-space: nowrap; }
@@ -114,4 +107,46 @@
 }
 @media (prefers-reduced-motion: reduce) {
   #travel-app *, #travel-app *::before, #travel-app *::after { transition-duration: 0s !important; }
+}
+
+/* === v3 dual-engine overlays === */
+#travel-app .ft-map-frame { background: #091c29; }
+#travel-app .ft-map-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  overflow: hidden; background: #102634;
+}
+#travel-app .ft-map-canvas[hidden] { display: none !important; }
+#travel-app #ft-china-map { z-index: 1; }
+#travel-app #ft-world-map { z-index: 1; }
+#travel-app .ft-map-top, #travel-app .ft-timeline, #travel-app .ft-map-status { z-index: 710; }
+#travel-app .ft-setup-notice {
+  margin: 0 0 14px; padding: 11px 14px;
+  background: #193442; border: 1px solid #36788b;
+  color: #c8eff8; border-radius: 9px; font-size: .78rem; line-height: 1.75;
+}
+#travel-app .ft-setup-notice[hidden] { display: none !important; }
+#travel-app .ft-world-marker {
+  display: flex !important; flex-direction: column-reverse;
+  align-items: center; justify-content: center;
+  width: auto !important; min-width: 0 !important; height: auto !important;
+  padding: 0 !important; margin: 0 !important; background: none !important;
+  border: 0 !important; box-shadow: none !important; outline-offset: 6px;
+  cursor: pointer;
+}
+#travel-app .ft-world-marker[hidden] { display: none !important; }
+#travel-app .ft-world-dot {
+  display: block; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid #e6ffff; background: #08d3df;
+  box-shadow: 0 0 8px #00d5df, 0 0 18px #00cddb99;
+}
+#travel-app .ft-world-label {
+  display: none; margin-bottom: 6px; white-space: nowrap;
+  color: #f0fcff; font-weight: 730; font-size: 12px;
+  text-shadow: 0 1px 4px #06121e, 0 1px 8px #06121e;
+}
+#travel-app .ft-world-marker.show-label .ft-world-label { display: block; }
+#travel-app .ft-world-marker:hover .ft-world-dot { transform: scale(1.18); }
+/* Only raster pixels are inverted: city GeoJSON and markers keep the correct cyan color. */
+@media (max-width: 530px) {
+  #travel-app .ft-setup-notice { font-size: .72rem; }
 }
