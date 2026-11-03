@@ -1,389 +1,575 @@
-/* Travel Map · Leaflet + MapLibre/OpenFreeMap + local GeoJSON city footprints */
+/* Footprints v3: China = native AMap JS API; World = MapLibre/OpenFreeMap.
+ * Both Web JS API Key and securityJsCode are intentionally loaded from public travel-config.json.
+ * Public/front-end securityJsCode is INSECURE; use only if you accept credential exposure.
+ * In browsers without working MapLibre, standard OSM tiles via Leaflet are the fallback.
+ */
 (() => {
   "use strict";
-
   const app = document.getElementById("travel-app");
   if (!app) return;
   const $ = (id) => document.getElementById(id);
   const ui = {
-    map: $("ft-map"), status: $("ft-map-status"), demo: $("ft-demo-notice"),
+    world: $("ft-world-map"), china: $("ft-china-map"),
+    status: $("ft-map-status"), setup: $("ft-setup-notice"), demo: $("ft-demo-notice"),
     cityCount: $("ft-city-count"), countryCount: $("ft-country-count"),
-    visibleCount: $("ft-visible-count"), list: $("ft-city-list"),
-    detail: $("ft-detail"), search: $("ft-search"),
-    yearRange: $("ft-year-range"), yearLabel: $("ft-year-label"),
+    visibleCount: $("ft-visible-count"), list: $("ft-city-list"), detail: $("ft-detail"),
+    search: $("ft-search"), timeline: $("ft-timeline"),
+    slider: $("ft-year-range"), yearLabel: $("ft-year-label"),
     yearMin: $("ft-year-min"), yearMax: $("ft-year-max"),
-    worldView: $("ft-world-view"), chinaView: $("ft-china-view"),
-    fitVisited: $("ft-fit-visited"), timeline: $("ft-timeline"),
+    worldButton: $("ft-world-view"), chinaButton: $("ft-china-view"), fitButton: $("ft-fit-visited"),
   };
   const baseurl = (app.dataset.baseurl || "").replace(/\/$/, "");
-  const WORLD_BOUNDS = [[-58, -179], [77, 179]];
-  const CHINA_BOUNDS = [[17, 73], [54, 135]];
-  const STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
-  const activeItems = new Map();
-  const cachedBoundaries = new Map();
-  let cities = [];
-  let filteredByYear = [];
-  let years = [];
-  let selectedId = null;
-  let map = null;
-  let baseMapReady = false;
+  const DEFAULT_WORLD_STYLE = "https://tiles.openfreemap.org/styles/dark";
+  const CHINA_BOUNDS = [[73, 17], [135, 54]]; // MapLibre: [[west, south], [east, north]]
+  const WORLD_BOUNDS = [[-168, -58], [178, 78]];
+  const COLOR = { fill: "#12d5df", stroke: "#77f8ff" };
+  const geoCache = new Map();
+  const worldMarkers = new Map();
+  const fallbackItems = new Map();
+  const chinaItems = new Map();
+  let config = {}, cities = [], years = [], visibleCities = [], selectedId = null;
+  let mode = "world", worldMap = null, worldReady = false, worldFallback = null;
+  let worldTimer = null, worldFailures = 0, worldStarted = false;
+  let chinaMap = null, chinaLoading = null, chinaLoaded = false;
+  let boundaries = new Map(), amapSearch = null;
 
-  const make = (tag, className, value) => {
+  const make = (tag, className, txt) => {
     const el = document.createElement(tag);
     if (className) el.className = className;
-    if (value !== undefined) el.textContent = String(value);
+    if (txt !== undefined) el.textContent = String(txt);
     return el;
   };
-  function status(message, error = false) {
+  const yearOf = (c) => {
+    const m = String(c.date || "").match(/^(\d{4})/);
+    return m ? Number(m[1]) : null;
+  };
+  const chinaCity = (c) => c.countryCode === "CN" || c.country === "中国";
+  const subtitle = (c) => [c.region, c.country].filter(Boolean).join(" · ");
+  const countCountries = (list) => new Set(list.map((c) => c.countryCode || c.country).filter(Boolean)).size;
+  const validCity = (c) => c && typeof c.id === "string" && c.id.trim() &&
+    typeof c.name === "string" && c.name.trim() &&
+    Array.isArray(c.coordinates) && c.coordinates.length === 2 &&
+    c.coordinates.every((x) => typeof x === "number" && Number.isFinite(x)) &&
+    Math.abs(c.coordinates[0]) <= 90 && Math.abs(c.coordinates[1]) <= 180;
+
+  function assetURL(raw) {
+    if (typeof raw !== "string" || !raw.trim()) return null;
+    try {
+      const s = raw.startsWith("/assets/") ? baseurl + raw : raw;
+      const url = new URL(s, window.location.origin + baseurl + "/");
+      return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+    } catch { return null; }
+  }
+  function showStatus(message, isError = false) {
     ui.status.textContent = message || "";
-    ui.status.classList.toggle("is-error", error);
+    ui.status.classList.toggle("is-error", !!isError);
     ui.status.hidden = !message;
   }
-  function resolveAsset(value) {
-    if (typeof value !== "string" || !value.trim()) return null;
-    try {
-      const candidate = value.startsWith("/assets/") ? `${baseurl}${value}` : value;
-      const url = new URL(candidate, window.location.origin + baseurl + "/");
-      return ["https:", "http:"].includes(url.protocol) ? url.href : null;
-    } catch (_e) { return null; }
+  function showSetup(message) {
+    ui.setup.textContent = message || "";
+    ui.setup.hidden = !message;
   }
-  function validCity(city) {
-    return city && typeof city.id === "string" && !!city.id.trim() &&
-      typeof city.name === "string" && !!city.name.trim() &&
-      Array.isArray(city.coordinates) && city.coordinates.length === 2 &&
-      city.coordinates.every((n) => typeof n === "number" && Number.isFinite(n)) &&
-      Math.abs(city.coordinates[0]) <= 90 && Math.abs(city.coordinates[1]) <= 180;
-  }
-  const cityYear = (city) => {
-    const match = typeof city.date === "string" && city.date.match(/^(\d{4})/);
-    return match ? Number(match[1]) : null;
-  };
-  const citySubtitle = (city) => [city.region, city.country].filter(Boolean).join(" · ");
-  const countryCount = (group) => new Set(group.map((city) => city.country).filter(Boolean)).size;
-
-  function showWorld(animated = true) {
-    if (!map) return;
-    map.invalidateSize();
-    map.fitBounds(WORLD_BOUNDS, { padding: [12, 12], maxZoom: 2.5, animate: animated });
-    viewButton("world");
-  }
-  function showChina(animated = true) {
-    if (!map) return;
-    map.invalidateSize();
-    map.fitBounds(CHINA_BOUNDS, { padding: [16, 16], maxZoom: 5, animate: animated });
-    viewButton("china");
-  }
-  function showVisited(animated = true) {
-    if (!map) return;
-    const points = filteredByYear.map((city) => city.coordinates);
-    if (!points.length) return showWorld(animated);
-    if (points.length === 1) {
-      map.flyTo(points[0], 6, { animate: animated, duration: 0.9 });
-    } else {
-      // Fit all visited cities, and leave substantial padding for their polygons.
-      map.fitBounds(L.latLngBounds(points).pad(0.48), {
-        padding: [20, 20], maxZoom: 6, animate: animated,
-      });
+  function readVisible() {
+    const n = Number(ui.slider.value);
+    const year = years.length && n < years.length ? years[n] : null;
+    ui.yearLabel.textContent = year === null ? "全部年份" : `截至 ${year} 年`;
+    visibleCities = year === null ? [...cities] : cities.filter((c) => yearOf(c) === null || yearOf(c) <= year);
+    ui.cityCount.textContent = String(visibleCities.length);
+    ui.countryCount.textContent = String(countCountries(visibleCities));
+    ui.demo.hidden = !cities.some((c) => c.demo === true);
+    if (selectedId && !visibleCities.some((c) => c.id === selectedId)) {
+      selectedId = null;
+      renderDetails(null);
     }
-    viewButton("visited");
-  }
-  function viewButton(which) {
-    [ui.worldView, ui.chinaView, ui.fitVisited].forEach((el) => el.classList.remove("is-active"));
-    const el = { world: ui.worldView, china: ui.chinaView, visited: ui.fitVisited }[which];
-    if (el) el.classList.add("is-active");
-  }
-  function buildMap() {
-    if (!window.L) {
-      status("Leaflet 未加载。请检查网络连接是否阻止了 CDN。", true);
-      return false;
-    }
-    map = L.map(ui.map, {
-      zoomControl: false, attributionControl: true, scrollWheelZoom: false,
-      preferCanvas: false, zoomSnap: 0.25, zoomDelta: 0.5,
-      minZoom: 1, maxZoom: 16, worldCopyJump: false,
-      maxBounds: [[-85, -540], [85, 540]], maxBoundsViscosity: 0.7,
-    }).setView([23, 105], 3);
-    L.control.zoom({ position: "bottomright" }).addTo(map);
-    map.attributionControl.setPrefix(false);
-
-    map.createPane("ft-boundaries").style.zIndex = "410";
-    map.createPane("ft-markers").style.zIndex = "630";
-    map.createPane("ft-labels").style.zIndex = "640";
-    for (const id of ["ft-world-view", "ft-china-view", "ft-fit-visited", "ft-timeline"]) {
-      L.DomEvent.disableClickPropagation($(id));
-      L.DomEvent.disableScrollPropagation($(id));
-    }
-    const glAvailable = !!(window.maplibregl && typeof L.maplibreGL === "function" &&
-      typeof window.maplibregl.supported === "function" && window.maplibregl.supported());
-
-    if (glAvailable) {
-      try {
-        const layer = L.maplibreGL({ style: STYLE_URL, interactive: false });
-        layer.addTo(map);
-        const glMap = layer.getMaplibreMap();
-        glMap.on("load", () => {
-          baseMapReady = true;
-          if (ui.status.textContent === "正在加载足迹城市…") status("");
-        });
-        glMap.on("error", (event) => {
-          if (!baseMapReady && event?.error) status("矢量地图暂时无法连接，城市区域仍可查看。", true);
-        });
-      } catch (err) {
-        console.warn("MapLibre layer failed:", err);
-        addRasterFallback();
-      }
-    } else {
-      addRasterFallback();
-    }
-    // Keep base-map provider attribution visible even if the style lacks it.
-    map.attributionControl.addAttribution(
-      '<a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a> · ' +
-      '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
-    );
-    window.addEventListener("resize", () => map.invalidateSize());
-    return true;
-  }
-  function addRasterFallback() {
-    // A CSS-free fallback for older browsers / no WebGL. Can be removed if undesired.
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd", maxZoom: 19, attribution: '© <a href="https://carto.com/">CARTO</a>',
-      errorTileUrl: "",
-    }).addTo(map);
-    baseMapReady = true;
-  }
-  function popupNode(city) {
-    const node = make("div", "ft-popup");
-    node.append(make("strong", "", city.name));
-    if (citySubtitle(city)) node.append(make("span", "", citySubtitle(city)));
-    if (city.date) node.append(make("small", "", city.date));
-    return node;
-  }
-  function addMarker(city) {
-    // Marker is still useful in global view, where a whole city is sub-pixel.
-    const marker = L.circleMarker(city.coordinates, {
-      pane: "ft-markers", className: "ft-map-dot", radius: 6,
-      weight: 2.2, color: "#d1ffff", opacity: 1,
-      fillColor: "#10d8e5", fillOpacity: 0.98,
-    }).addTo(map);
-    marker.bindTooltip(city.name, { direction: "top", offset: [0, -8] });
-    marker.bindPopup(popupNode(city), { maxWidth: 250 });
-    marker.on("click", () => selectCity(city.id, false));
-    const label = L.marker(city.coordinates, {
-      pane: "ft-labels", interactive: false, keyboard: false,
-      icon: L.divIcon({ className: "ft-map-label", html: "", iconSize: [0, 0] }),
-    }).addTo(map);
-    // Use textContent instead of HTML interpolation to prevent injected markup.
-    if (label.getElement()) label.getElement().textContent = city.name;
-    activeItems.set(city.id, { marker, label, polygon: null });
-  }
-  async function addBoundary(city) {
-    if (!city.boundary) return;
-    const url = resolveAsset(city.boundary);
-    if (!url) { console.warn("Invalid boundary URL", city.id); return; }
-    try {
-      let json = cachedBoundaries.get(url);
-      if (!json) {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        json = await res.json();
-        if (!["Feature", "FeatureCollection", "Polygon", "MultiPolygon"].includes(json.type)) {
-          throw new Error("Invalid GeoJSON type");
-        }
-        cachedBoundaries.set(url, json);
-      }
-      const layer = L.geoJSON(json, {
-        pane: "ft-boundaries", interactive: true, smoothFactor: 0.35,
-        style: {
-          color: "#69f3ff", weight: 1.45, opacity: 0.95,
-          fillColor: "#13d1de", fillOpacity: 0.47,
-        },
-        onEachFeature: (_feature, area) => {
-          area.on("click", () => selectCity(city.id, false));
-          area.on("mouseover", () => {
-            area.setStyle({ fillOpacity: 0.70, weight: 2.1 });
-          });
-          area.on("mouseout", () => {
-            area.setStyle({ fillOpacity: 0.47, weight: 1.45 });
-          });
-        },
-      }).addTo(map);
-      activeItems.get(city.id).polygon = layer;
-      if (!filteredByYear.some((value) => value.id === city.id)) map.removeLayer(layer);
-      else activeItems.get(city.id).marker.bringToFront();
-    } catch (err) {
-      console.warn(`Failed to load boundary for ${city.name}:`, err);
-      return false;
-    }
-    return true;
+    renderList();
+    updateWorldLayers();
+    updateChinaLayers();
   }
   function renderList() {
-    const keyword = ui.search.value.trim().toLocaleLowerCase();
     ui.list.replaceChildren();
-    const shown = filteredByYear.filter((city) =>
-      [city.name, city.region, city.country, city.category, city.description]
-        .filter(Boolean).join(" ").toLocaleLowerCase().includes(keyword)
-    );
+    const q = ui.search.value.trim().toLocaleLowerCase();
+    const shown = visibleCities.filter((c) =>
+      [c.name, c.region, c.country, c.category, c.description]
+        .filter(Boolean).join(" ").toLocaleLowerCase().includes(q));
     ui.visibleCount.textContent = String(shown.length);
     if (!shown.length) {
-      ui.list.append(make("p", "ft-empty", "没有符合条件的城市，试着更换关键词或年份。"));
+      ui.list.append(make("p", "ft-empty", "没有符合条件的城市。调整关键词或年份试试。"));
       return;
     }
-    shown.forEach((city, idx) => {
+    shown.forEach((city, i) => {
       const card = make("button", "ft-city-card");
       card.type = "button";
-      card.dataset.cityId = city.id;
-      card.classList.toggle("is-selected", city.id === selectedId);
+      card.classList.toggle("is-selected", selectedId === city.id);
       const head = make("span", "ft-city-card-top");
-      head.append(make("span", "ft-city-no", String(idx + 1).padStart(2, "0")));
+      head.append(make("span", "ft-city-no", String(i + 1).padStart(2, "0")));
       head.append(make("strong", "ft-city-name", city.name));
       if (city.demo) head.append(make("span", "ft-demo-tag", "演示"));
-      card.append(head);
-      card.append(make("span", "ft-city-meta", citySubtitle(city)));
+      card.append(head, make("span", "ft-city-meta", subtitle(city)));
       if (city.date) card.append(make("span", "ft-city-date", city.date));
-      card.addEventListener("click", () => selectCity(city.id));
+      card.addEventListener("click", () => selectCity(city.id, true));
       ui.list.append(card);
     });
   }
-  function renderDetail(city) {
+  function renderDetails(city) {
     ui.detail.replaceChildren();
     if (!city) {
-      ui.detail.append(make("p", "ft-empty", "点击城市或区域，查看旅行故事。"));
+      ui.detail.append(make("p", "ft-empty", "选择地图上的区域或城市卡片，查看旅行记录。"));
       return;
     }
-    const title = make("div", "ft-detail-title");
-    title.append(make("h4", "", city.name));
-    if (city.demo) title.append(make("span", "ft-detail-demo", "演示记录"));
-    ui.detail.append(title);
-    ui.detail.append(make("p", "ft-detail-subtitle", citySubtitle(city)));
-    const info = make("div", "ft-detail-info");
-    if (city.date) info.append(make("span", "", `📅 ${city.date}`));
-    if (city.category) info.append(make("span", "", city.category));
-    if (info.childNodes.length) ui.detail.append(info);
+    const head = make("div", "ft-detail-title");
+    head.append(make("h4", "", city.name));
+    if (city.demo) head.append(make("span", "ft-detail-demo", "演示记录"));
+    ui.detail.append(head, make("p", "ft-detail-subtitle", subtitle(city)));
+    const tags = make("div", "ft-detail-info");
+    if (city.date) tags.append(make("span", "", `📅 ${city.date}`));
+    if (city.category) tags.append(make("span", "", city.category));
+    if (tags.childNodes.length) ui.detail.append(tags);
     if (city.description) ui.detail.append(make("p", "ft-detail-description", city.description));
     if (Array.isArray(city.photos) && city.photos.length) {
       const gallery = make("div", "ft-gallery");
-      city.photos.forEach((photo, index) => {
-        const src = resolveAsset(photo);
-        if (!src) return;
-        const a = make("a", "ft-photo");
-        a.href = src;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
+      for (const [i, photo] of city.photos.entries()) {
+        const url = assetURL(photo);
+        if (!url) continue;
+        const link = make("a", "ft-photo");
+        link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer";
         const img = make("img");
-        img.src = src; img.alt = `${city.name}旅行照片 ${index + 1}`;
-        img.loading = "lazy";
-        a.append(img); gallery.append(a);
-      });
+        img.src = url; img.alt = `${city.name}旅行照片 ${i + 1}`; img.loading = "lazy";
+        link.append(img); gallery.append(link);
+      }
       if (gallery.childNodes.length) ui.detail.append(gallery);
     }
   }
-  function selectCity(id, fly = true) {
-    const city = filteredByYear.find((c) => c.id === id);
+  async function selectCity(id, fly) {
+    const city = visibleCities.find((c) => c.id === id);
     if (!city) return;
     selectedId = id;
-    renderList();
-    renderDetail(city);
-    const item = activeItems.get(id);
-    if (item?.polygon) {
-      item.polygon.bringToFront();
-      if (fly && item.polygon.getBounds().isValid()) {
-        map.flyToBounds(item.polygon.getBounds().pad(0.38), { maxZoom: 9, duration: 0.9 });
+    renderList(); renderDetails(city);
+    if (mode === "china" && !chinaCity(city)) await switchMode("world");
+    if (!fly) return;
+    if (mode === "china" && chinaMap) {
+      const item = chinaItems.get(id);
+      const polygons = item?.polygons || [];
+      if (polygons.length) chinaMap.setFitView(polygons, false, [48, 65]);
+      else if (item?.marker) chinaMap.setZoomAndCenter(9, item.marker.getCenter());
+    } else if (worldFallback) {
+      const item = fallbackItems.get(id);
+      if (item?.polygon && item.polygon.getBounds().isValid()) {
+        worldFallback.flyToBounds(item.polygon.getBounds().pad(.28), { maxZoom: 9 });
+      } else worldFallback.flyTo(city.coordinates, 8);
+    } else if (worldMap && worldReady) {
+      const data = boundaries.get(id);
+      const bbox = data && geoBounds(data);
+      if (bbox) worldMap.fitBounds(bbox, { padding: 70, maxZoom: 9, duration: 700 });
+      else worldMap.flyTo({ center: [city.coordinates[1], city.coordinates[0]], zoom: 8, duration: 700 });
+    }
+  }
+  function geoBounds(data) {
+    let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
+    function scan(node) {
+      if (!Array.isArray(node) || !node.length) return;
+      if (typeof node[0] === "number" && typeof node[1] === "number") {
+        const [lng, lat] = node;
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+          west = Math.min(west, lng); east = Math.max(east, lng);
+          south = Math.min(south, lat); north = Math.max(north, lat);
+        }
+      } else node.forEach(scan);
+    }
+    if (data.type === "FeatureCollection") data.features.forEach((f) => scan(f.geometry?.coordinates));
+    else scan((data.type === "Feature" ? data.geometry : data)?.coordinates);
+    if (![west, east, south, north].every(Number.isFinite)) return null;
+    return [[west, south], [east, north]];
+  }
+  async function loadBoundaries() {
+    await Promise.all(cities.map(async (city) => {
+      const url = assetURL(city.boundary);
+      if (!url) return;
+      try {
+        let geo = geoCache.get(url);
+        if (!geo) {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          geo = await response.json();
+          if (!["Feature", "FeatureCollection", "Polygon", "MultiPolygon"].includes(geo.type)) throw new Error("Invalid GeoJSON");
+          geoCache.set(url, geo);
+        }
+        boundaries.set(city.id, geo);
+      } catch (e) {
+        console.warn(`GeoJSON unavailable for ${city.name}`, e);
       }
-    } else if (fly) {
-      map.flyTo(city.coordinates, 8, { duration: 0.9 });
-    }
-    if (item?.marker) {
-      item.marker.bringToFront();
-      if (fly) item.marker.openPopup();
-    }
-    viewButton(null);
+    }));
+    updateWorldLayers();
+    updateFallbackLayers();
   }
-  function setYear() {
-    const index = Number(ui.yearRange.value);
-    const year = index < years.length ? years[index] : null;
-    ui.yearLabel.textContent = year === null ? "全部年份" : `截至 ${year} 年`;
-    filteredByYear = year === null ? [...cities] : cities.filter((c) => {
-      const y = cityYear(c);
-      return y === null || y <= year;
-    });
-    const ids = new Set(filteredByYear.map((c) => c.id));
-    activeItems.forEach((item, id) => {
-      const visible = ids.has(id);
-      [item.marker, item.label, item.polygon].filter(Boolean).forEach((layer) => {
-        const onMap = map.hasLayer(layer);
-        if (visible && !onMap) layer.addTo(map);
-        if (!visible && onMap) map.removeLayer(layer);
-      });
-    });
-    if (selectedId && !ids.has(selectedId)) {
-      selectedId = null;
-      map.closePopup();
-      renderDetail(null);
+  function collectionForVisible() {
+    const features = [];
+    for (const city of visibleCities) {
+      const geo = boundaries.get(city.id);
+      if (!geo) continue;
+      const parts = geo.type === "FeatureCollection" ? geo.features :
+        geo.type === "Feature" ? [geo] : [{ geometry: geo }];
+      for (const part of parts) {
+        if (!["Polygon", "MultiPolygon"].includes(part.geometry?.type)) continue;
+        features.push({ type: "Feature", properties: { id: city.id, name: city.name }, geometry: part.geometry });
+      }
     }
-    ui.cityCount.textContent = String(filteredByYear.length);
-    ui.countryCount.textContent = String(countryCount(filteredByYear));
-    renderList();
+    return { type: "FeatureCollection", features };
   }
-  function updateLabelVisibility() {
-    if (!map) return;
-    const zoom = map.getZoom();
-    // Labels supplement the base-map labels and remain readable above cyan polygons.
-    activeItems.forEach((item) => {
-      if (item.label?.getElement()) item.label.getElement().classList.toggle("is-visible", zoom >= 4.2);
-      if (item.marker?.setRadius) item.marker.setRadius(zoom < 4.2 ? 5.8 : 4.2);
-    });
-  }
-  async function init() {
-    if (!buildMap()) return;
-    status("正在加载足迹城市…");
-    try {
-      const response = await fetch(app.dataset.citiesUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      if (!Array.isArray(data)) throw new Error("visited-cities.json 必须是数组");
-      const seen = new Set();
-      cities = data.filter((city) => {
-        if (!validCity(city) || seen.has(city.id)) return false;
-        seen.add(city.id);
-        return true;
-      });
-    } catch (err) {
-      console.error("Cannot load travel cities:", err);
-      status("无法读取 visited-cities.json。请检查文件路径与 JSON 语法。", true);
+  // --- World: OpenFreeMap Dark with native MapLibre polygons -------------------
+  function startWorld() {
+    if (worldStarted) return;
+    worldStarted = true;
+    if (!window.maplibregl || !maplibregl.supported()) {
+      startLeafletFallback("当前设备不支持矢量地图，已使用开源瓦片底图。");
       return;
     }
-    ui.demo.hidden = !cities.some((c) => c.demo === true);
-    years = [...new Set(cities.map(cityYear).filter(Number.isFinite))].sort((a, b) => a - b);
-    ui.timeline.hidden = !years.length;
-    ui.yearRange.min = "0";
-    ui.yearRange.max = String(years.length);
-    ui.yearRange.value = String(years.length);
-    ui.yearMin.textContent = years.length ? String(years[0]) : "—";
-    ui.yearMax.textContent = "全部";
-    cities.forEach(addMarker);
-    setYear();
-    map.on("zoomend", updateLabelVisibility);
-    updateLabelVisibility();
-    const results = await Promise.allSettled(cities.map(addBoundary));
-    const missing = results.filter((result, i) => !!cities[i].boundary &&
-      (result.status !== "fulfilled" || result.value !== true)).length;
-    if (missing) status(`${missing} 个城市的边界加载失败，仅显示城市光点。请检查本地 GeoJSON 文件。`, true);
-    else status("");
-    requestAnimationFrame(() => {
-      map.invalidateSize();
-      // China is the most useful initial view for the two sample cities.
-      if (cities.length && cities.every((c) => c.country === "中国")) showChina(false);
-      else showWorld(false);
-      updateLabelVisibility();
+    try {
+      worldMap = new maplibregl.Map({
+        container: ui.world,
+        style: config.worldStyle || DEFAULT_WORLD_STYLE,
+        center: [105, 30], zoom: 2, minZoom: 1, maxZoom: 16,
+        attributionControl: true, renderWorldCopies: false,
+      });
+      worldMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      worldMap.on("load", () => {
+        worldReady = true;
+        clearTimeout(worldTimer);
+        worldMap.addSource("footprints", { type: "geojson", data: collectionForVisible() });
+        worldMap.addLayer({ id: "footprints-fill", type: "fill", source: "footprints", paint: {
+          "fill-color": COLOR.fill, "fill-opacity": .54,
+        }});
+        worldMap.addLayer({ id: "footprints-edge", type: "line", source: "footprints", paint: {
+          "line-color": COLOR.stroke, "line-opacity": .98, "line-width": 1.6,
+        }});
+        worldMap.on("click", "footprints-fill", (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (id) selectCity(id, false);
+        });
+        worldMap.on("mouseenter", "footprints-fill", () => { worldMap.getCanvas().style.cursor = "pointer"; });
+        worldMap.on("mouseleave", "footprints-fill", () => { worldMap.getCanvas().style.cursor = ""; });
+        worldMap.on("zoomend", refreshWorldLabels);
+        cities.forEach(addWorldMarker);
+        updateWorldLayers();
+        refreshWorldLabels();
+        if (mode !== "china") { worldMap.resize(); fitCurrentView(false); }
+        showStatus("");
+      });
+      worldMap.on("error", (ev) => {
+        if (worldReady || worldFallback) return;
+        worldFailures++;
+        console.warn("OpenFreeMap error", ev.error || ev);
+        if (worldFailures >= 4) startLeafletFallback("OpenFreeMap 无法连接，已切换到 OSM 备用底图。");
+      });
+      worldTimer = setTimeout(() => {
+        if (!worldReady && !worldFallback) startLeafletFallback("OpenFreeMap 加载超时，已切换到 OSM 备用底图。");
+      }, 12000);
+    } catch (err) {
+      console.warn("MapLibre startup failed", err);
+      startLeafletFallback("矢量地图未能启动，已切换到 OSM 备用底图。");
+    }
+  }
+  function addWorldMarker(city) {
+    if (!worldMap || worldMarkers.has(city.id)) return;
+    const root = make("button", "ft-world-marker");
+    root.type = "button";
+    root.setAttribute("aria-label", `查看${city.name}的旅行记录`);
+    root.append(make("span", "ft-world-dot"), make("span", "ft-world-label", city.name));
+    root.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); selectCity(city.id, true); });
+    const marker = new maplibregl.Marker({ element: root, anchor: "bottom" })
+      .setLngLat([city.coordinates[1], city.coordinates[0]]).addTo(worldMap);
+    worldMarkers.set(city.id, { root, marker });
+  }
+  function refreshWorldLabels() {
+    const zoom = worldMap?.getZoom() || 0;
+    worldMarkers.forEach((item) => item.root.classList.toggle("show-label", zoom >= 4.4));
+  }
+  function updateWorldLayers() {
+    if (worldReady && worldMap?.getSource("footprints")) {
+      worldMap.getSource("footprints").setData(collectionForVisible());
+      const selected = new Set(visibleCities.map((c) => c.id));
+      worldMarkers.forEach((obj, id) => { obj.root.hidden = !selected.has(id); });
+    }
+    updateFallbackLayers();
+  }
+  // If MapLibre/WebGL or its style fails, switch only this view to Leaflet+OSM.
+  function startLeafletFallback(message) {
+    if (worldFallback) return;
+    clearTimeout(worldTimer);
+    try { if (worldMap) worldMap.remove(); } catch (e) { console.warn(e); }
+    worldMap = null; worldReady = false;
+    if (!window.L) {
+      showStatus("开源地图组件加载失败。请检查网络或浏览器拦截设置。", true);
+      return;
+    }
+    ui.world.classList.add("ft-world-fallback");
+    worldFallback = L.map(ui.world, { minZoom: 1, maxZoom: 16, scrollWheelZoom: false })
+      .setView([30, 105], 3);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    }).addTo(worldFallback);
+    updateFallbackLayers();
+    if (mode !== "china") { worldFallback.invalidateSize(); fitCurrentView(false); }
+    showStatus(message);
+  }
+  function updateFallbackLayers() {
+    if (!worldFallback) return;
+    const keep = new Set(visibleCities.map((c) => c.id));
+    for (const city of cities) {
+      let item = fallbackItems.get(city.id);
+      if (!item) {
+        const marker = L.circleMarker(city.coordinates, {
+          radius: 5.5, weight: 2, color: "#c1ffff", fillColor: COLOR.fill, fillOpacity: 1,
+        }).on("click", () => selectCity(city.id, true));
+        item = { marker, polygon: null };
+        fallbackItems.set(city.id, item);
+      }
+      if (!item.polygon && boundaries.has(city.id)) {
+        item.polygon = L.geoJSON(boundaries.get(city.id), {
+          style: { color: COLOR.stroke, fillColor: COLOR.fill, fillOpacity: .55, weight: 1.4 },
+          onEachFeature: (_f, layer) => { layer.on("click", () => selectCity(city.id, false)); },
+        });
+      }
+      for (const layer of [item.polygon, item.marker].filter(Boolean)) {
+        if (keep.has(city.id) && !worldFallback.hasLayer(layer)) layer.addTo(worldFallback);
+        else if (!keep.has(city.id) && worldFallback.hasLayer(layer)) worldFallback.removeLayer(layer);
+      }
+      if (worldFallback.hasLayer(item.marker)) item.marker.bringToFront();
+    }
+  }
+  function fitWorld(bounds, animated) {
+    if (worldFallback) {
+      const latlng = [[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[1][0]]];
+      worldFallback.invalidateSize();
+      worldFallback.fitBounds(latlng, { padding: [20, 20], animate: animated });
+    } else if (worldMap && worldReady) {
+      worldMap.resize();
+      worldMap.fitBounds(bounds, { padding: 30, maxZoom: 8, duration: animated ? 700 : 0 });
+    }
+  }
+  function fitCurrentView(animated) {
+    if (mode === "china") {
+      if (chinaMap) {
+        const overlays = visibleCities.filter(chinaCity)
+          .flatMap((c) => chinaItems.get(c.id)?.polygons || []);
+        if (overlays.length) chinaMap.setFitView(overlays, false, [50, 90]);
+        else chinaMap.setZoomAndCenter(4, [105, 36], !animated ? 0 : 450);
+      }
+      return;
+    }
+    if (mode === "china-preview") {
+      fitWorld(CHINA_BOUNDS, animated);
+      return;
+    }
+    fitWorld(WORLD_BOUNDS, animated);
+  }
+  function fitVisited() {
+    if (mode === "china" && chinaMap) { fitCurrentView(true); return; }
+    const included = visibleCities.filter((c) => mode !== "china-preview" || chinaCity(c));
+    if (!included.length) { fitCurrentView(true); return; }
+    let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
+    for (const city of included) {
+      const b = boundaries.has(city.id) ? geoBounds(boundaries.get(city.id)) : null;
+      const [w, s, e, n] = b ? [b[0][0], b[0][1], b[1][0], b[1][1]] :
+        [city.coordinates[1], city.coordinates[0], city.coordinates[1], city.coordinates[0]];
+      west = Math.min(west, w); east = Math.max(east, e);
+      south = Math.min(south, s); north = Math.max(north, n);
+    }
+    const dw = Math.max(east - west, .8), dh = Math.max(north - south, .8);
+    fitWorld([[west - dw * .28, south - dh * .28], [east + dw * .28, north + dh * .28]], true);
+  }
+  // --- China: AMap official JS API + live DistrictSearch city boundaries -------
+  function hasAMapConfig() {
+    return typeof config.amapKey === "string" && !!config.amapKey.trim() &&
+      typeof config.amapSecurityJsCode === "string" && !!config.amapSecurityJsCode.trim();
+  }
+  function loadAMap() {
+    if (chinaLoading) return chinaLoading;
+    if (!hasAMapConfig()) return Promise.reject(new Error("没有配置高德 Web JS API Key 和安全密钥"));
+    chinaLoading = new Promise((resolve, reject) => {
+      // Official AMap plaintext option. WARNING: visible in browser and public GitHub.
+      // This MUST be set before loading webapi.amap.com/maps.
+      window._AMapSecurityConfig = { securityJsCode: config.amapSecurityJsCode.trim() };
+      const script = document.createElement("script");
+      script.src = "https://webapi.amap.com/maps?v=2.0&key=" + encodeURIComponent(config.amapKey) +
+        "&plugin=AMap.DistrictSearch";
+      script.async = true;
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) { settled = true; reject(new Error("高德脚本加载超时")); }
+      }, 14000);
+      script.onload = () => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        window.AMap ? resolve(window.AMap) : reject(new Error("高德脚本未初始化"));
+      };
+      script.onerror = () => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        reject(new Error("无法加载高德地图 JS API，请检查 Key、网络和域名白名单"));
+      };
+      document.head.append(script);
+    });
+    return chinaLoading;
+  }
+  async function buildChina() {
+    if (chinaLoaded && chinaMap) return;
+    const AMap = await loadAMap();
+    if (chinaMap) return;
+    chinaMap = new AMap.Map("ft-china-map", {
+      viewMode: "2D", center: [105, 36], zoom: 4, zooms: [3, 18],
+      mapStyle: "amap://styles/darkblue", resizeEnable: true,
+    });
+    amapSearch = new AMap.DistrictSearch({ subdistrict: 0, extensions: "all", level: "city" });
+    chinaLoaded = true;
+    // Independent AMap boundaries use GCJ-02 coordinates returned by AMap itself.
+    await Promise.all(cities.filter(chinaCity).map(addAMapCity));
+    updateChinaLayers();
+    if (mode === "china") {
+      chinaMap.resize();
+      fitCurrentView(false);
+    }
+  }
+  function addAMapCity(city) {
+    if (!city.adcode && !city.name) return Promise.resolve(false);
+    if (chinaItems.has(city.id)) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const AMap = window.AMap;
+      const district = new AMap.DistrictSearch({
+        subdistrict: 0, extensions: "all", level: city.amapLevel || "city",
+      });
+      district.search(city.adcode || city.name, (code, result) => {
+        const values = result?.districtList || [];
+        const districtResult = values.find((d) => String(d.adcode) === String(city.adcode)) || values[0];
+        const paths = districtResult?.boundaries;
+        if (code !== "complete" || !paths?.length) {
+          console.warn("AMap DistrictSearch failed:", city.name, code, result);
+          resolve(false); return;
+        }
+        const polys = paths.map((path) => new AMap.Polygon({
+          path: [path], map: chinaMap, fillColor: COLOR.fill, fillOpacity: .50,
+          strokeColor: COLOR.stroke, strokeOpacity: 1, strokeWeight: 1.6,
+          bubble: false, zIndex: 65,
+        }));
+        for (const p of polys) {
+          p.on("click", () => selectCity(city.id, false));
+          p.on("mouseover", () => p.setOptions({ fillOpacity: .77, strokeWeight: 2.3 }));
+          p.on("mouseout", () => p.setOptions({ fillOpacity: .50, strokeWeight: 1.6 }));
+        }
+        const center = districtResult.center || (polys[0]?.getBounds()?.getCenter());
+        let marker = null;
+        if (center) {
+          marker = new AMap.CircleMarker({
+            map: chinaMap, center, radius: 5.5,
+            strokeColor: "#dfffff", strokeWeight: 2,
+            fillColor: COLOR.fill, fillOpacity: 1, zIndex: 80,
+          });
+          marker.on("click", () => selectCity(city.id, true));
+        }
+        chinaItems.set(city.id, { polygons: polys, marker });
+        updateChinaLayers();
+        resolve(true);
+      });
     });
   }
-  ui.worldView.addEventListener("click", () => showWorld());
-  ui.chinaView.addEventListener("click", () => showChina());
-  ui.fitVisited.addEventListener("click", () => showVisited());
+  function updateChinaLayers() {
+    if (!chinaMap) return;
+    const set = new Set(visibleCities.map((c) => c.id));
+    chinaItems.forEach((item, id) => {
+      for (const obj of [...item.polygons, item.marker].filter(Boolean)) {
+        obj.setMap(set.has(id) ? chinaMap : null);
+      }
+    });
+  }
+  // Switches are explicit: two separate maps, no GCJ-02 / WGS84 overlay mixing.
+  async function switchMode(next) {
+    if (next === "china" && !hasAMapConfig()) {
+      mode = "china-preview";
+      ui.world.hidden = false; ui.china.hidden = true;
+      selectTab("china");
+      showSetup("中国视图尚未配置高德 Web JS API Key 与 securityJsCode：目前使用开源地图预览。填写 assets/data/travel-config.json 后将自动启用高德底图与城市边界（凭据会公开，请设置域名白名单）。");
+      startWorld();
+      if (worldReady || worldFallback) fitCurrentView(true);
+      return;
+    }
+    if (next === "china") {
+      mode = "china";
+      ui.china.hidden = false; ui.world.hidden = true;
+      selectTab("china");
+      showSetup("");
+      showStatus("正在加载高德地图及中国行政边界…");
+      try {
+        await buildChina();
+        if (mode !== "china") return;
+        showStatus(chinaItems.size ? "" : "高德地图已打开，但城市边界未返回；请检查 Key、安全密钥、域名白名单和额度。", !chinaItems.size);
+        chinaMap.resize();
+        fitCurrentView(true);
+      } catch (e) {
+        console.error("AMap startup error", e);
+        // Show a working, visible map rather than a blank map.
+        mode = "china-preview";
+        ui.world.hidden = false; ui.china.hidden = true;
+        selectTab("china");
+        showSetup("高德地图连接失败，已自动回退到开源中国地图预览。请检查 Web JS API Key、securityJsCode、域名白名单及浏览器控制台。");
+        startWorld();
+        if (worldReady || worldFallback) fitCurrentView(false);
+        showStatus("");
+      }
+      return;
+    }
+    mode = "world";
+    ui.world.hidden = false; ui.china.hidden = true;
+    selectTab("world");
+    showSetup("");
+    startWorld();
+    if (worldReady || worldFallback) fitCurrentView(true);
+  }
+  function selectTab(tab) {
+    for (const [name, button] of [["world", ui.worldButton], ["china", ui.chinaButton]]) {
+      const active = name === tab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
+  }
+  async function init() {
+    showStatus("正在加载足迹记录…");
+    try {
+      const [configResult, cityResult] = await Promise.all([
+        fetch(app.dataset.configUrl).then((r) => { if (!r.ok) throw new Error("travel-config.json: HTTP " + r.status); return r.json(); }),
+        fetch(app.dataset.citiesUrl).then((r) => { if (!r.ok) throw new Error("visited-cities.json: HTTP " + r.status); return r.json(); }),
+      ]);
+      config = configResult;
+      if (!Array.isArray(cityResult)) throw new Error("visited-cities.json 必须是数组");
+      const ids = new Set();
+      cities = cityResult.filter((c) => {
+        if (!validCity(c) || ids.has(c.id)) return false;
+        ids.add(c.id); return true;
+      });
+    } catch (e) {
+      console.error("Cannot initialize footprints", e);
+      showStatus("足迹数据或配置加载失败：请检查 JSON 文件与 URL。", true);
+      return;
+    }
+    years = [...new Set(cities.map(yearOf).filter(Number.isFinite))].sort((a, b) => a - b);
+    ui.timeline.hidden = !years.length;
+    ui.slider.min = "0"; ui.slider.max = String(years.length);
+    ui.slider.value = String(years.length);
+    ui.yearMin.textContent = years.length ? String(years[0]) : "—";
+    ui.yearMax.textContent = "全部";
+    readVisible();
+    // GeoJSON overlays are local and always available, even without a High Map key.
+    loadBoundaries();
+    showStatus("");
+    await switchMode(config.defaultMode === "world" ? "world" : "china");
+    window.addEventListener("resize", () => {
+      if (worldReady && !ui.world.hidden) worldMap.resize();
+      if (worldFallback && !ui.world.hidden) worldFallback.invalidateSize();
+      if (chinaMap && !ui.china.hidden) chinaMap.resize();
+    });
+  }
+  ui.worldButton.addEventListener("click", () => switchMode("world"));
+  ui.chinaButton.addEventListener("click", () => switchMode("china"));
+  ui.fitButton.addEventListener("click", fitVisited);
   ui.search.addEventListener("input", renderList);
-  ui.yearRange.addEventListener("input", () => {
-    setYear();
-    updateLabelVisibility();
-  });
+  ui.slider.addEventListener("input", readVisible);
   init();
 })();
