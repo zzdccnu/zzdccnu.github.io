@@ -219,7 +219,9 @@
   function startWorld() {
     if (worldStarted) return;
     worldStarted = true;
-    if (!window.maplibregl || !maplibregl.supported()) {
+    if (!window.maplibregl ||
+    (typeof maplibregl.supported === "function" &&
+      !maplibregl.supported())) {
       startLeafletFallback("当前设备不支持矢量地图，已使用开源瓦片底图。");
       return;
     }
