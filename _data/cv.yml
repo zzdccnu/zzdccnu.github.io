@@ -4,7 +4,7 @@ cv:
   email: zhuzhengdao@mails.ccnu.edu.cn
   location: Princeton, NJ
   image: ""
-  summary: 一个热衷于AI4S的本科生，希望能够用AI实际落地一些有趣的项目。
+  summary: 一个热衷于AI的本科生，希望能够用AI实际落地一些有趣的项目。
 
   social_networks:
     - network: X
@@ -23,6 +23,14 @@ cv:
 
   sections:
     Education:
+      - institution: Xiamen University
+        location: Xiamen, China
+        url: https://www.xmu.edu.cn/
+        area: Computer Science
+        studyType: Master
+        start_date: 2027
+        end_date: 2030
+      
       - institution: Central China Normal University
         location: WuHan, China
         url: https://www.ccnu.edu.cn/
@@ -107,15 +115,15 @@ cv:
         authors:
           - ZHU Zhengdao
         publisher: 软件学报(CCF-T1)
-        releaseDate: 一轮返修
-        summary: 本人第二篇论文，但是是本人第一个参与的科研项目，目前投稿至CCF-T1期刊，一轮审稿后返修。
+        releaseDate: 已录用
+        summary: 本人第二篇论文，但是是本人第一个参与的科研项目，目前投稿至CCF-T1期刊。
 
       - title: Agent-Driven Multi-Semantic Fusion for Jailbreak Prompt Detection in Large Language Models
         authors:
           - ZHU Zhengdao
-        publisher: SCI2区
-        releaseDate: 在投中
-        summary: 本人第三篇论文，目前还在四处投稿中~
+        publisher: MIA
+        releaseDate: 外审中
+        summary: 本人第三篇论文，目前还在外审中
 
     Skills:
       - name: Computer Science 
