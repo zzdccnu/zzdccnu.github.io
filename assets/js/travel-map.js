@@ -6,8 +6,8 @@
   const $ = (id) => document.getElementById(id);
   const base = (app.dataset.baseurl || "").replace(/\/$/, "");
   const ui = { status: $("ft-map-status"), setup: $("ft-setup-notice"), list: $("ft-city-list"), detail: $("ft-detail"), search: $("ft-search"), slider: $("ft-year-range") };
-  let cities = [], visible = [], years = [], selected = null, hovered = null, map = null, ready = false;
-  const boundaries = new Map(), markers = new Map();
+  let cities = [], wishlist = [], visible = [], years = [], selected = null, hovered = null, map = null, ready = false, listMode = "visited";
+  const boundaries = new Map(), markers = new Map(), wishMarkers = new Map();
   const make = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; if (text !== undefined) el.textContent = text; return el; };
   const asset = (path) => {
     if (typeof path !== "string" || !path.trim()) return null;
@@ -21,12 +21,19 @@
     if (!city) { ui.detail.append(make("p", "ft-empty", "选择地图上的区域或城市卡片，查看旅行记录。")); return; }
     const title = make("div", "ft-detail-title"); title.append(make("h4", "", city.name));
     if (city.demo) title.append(make("span", "ft-detail-demo", "演示记录"));
+    if (city.wishlist) title.append(make("span", "ft-wish-tag", "想去"));
     ui.detail.append(title, make("p", "ft-detail-subtitle", subtitle(city)));
     const tags = make("div", "ft-detail-info");
     if (city.date) tags.append(make("span", "", `📅 ${city.date}`));
     if (city.category) tags.append(make("span", "", city.category));
     ui.detail.append(tags);
-    if (city.description) ui.detail.append(make("p", "ft-detail-description", city.description));
+    const story = city.story || city.description;
+    const storySection = make("div", "ft-story");
+    storySection.append(make("h5", "ft-story-heading", city.wishlist ? "旅行期待" : "城市故事"));
+    storySection.append(make("p", "ft-detail-description", story || (city.wishlist ? "期待在这里留下新的回忆。" : "这座城市的故事，等你写下。")));
+    if (city.favoriteFood) storySection.append(make("p", "ft-story-extra", `喜欢的食物 · ${city.favoriteFood}`));
+    if (city.favoriteMemory) storySection.append(make("p", "ft-story-extra", `难忘的回忆 · ${city.favoriteMemory}`));
+    ui.detail.append(storySection);
     const gallery = make("div", "ft-gallery");
     (Array.isArray(city.photos) ? city.photos : []).forEach((photo, i) => {
       const url = asset(photo); if (!url) return;
@@ -37,13 +44,20 @@
   function list() {
     ui.list.replaceChildren();
     const query = ui.search.value.trim().toLocaleLowerCase();
-    const shown = visible.filter((city) => [city.name, city.region, city.country, city.category, city.description].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
+    const source = listMode === "wishlist" ? wishlist : visible;
+    const shown = source.filter((city) => [city.name, city.region, city.country, city.category, city.description, city.story, city.favoriteFood, city.favoriteMemory].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
+    $("ft-visited-tab").classList.toggle("is-active", listMode === "visited");
+    $("ft-wishlist-tab").classList.toggle("is-active", listMode === "wishlist");
+    $("ft-visited-tab").setAttribute("aria-pressed", String(listMode === "visited"));
+    $("ft-wishlist-tab").setAttribute("aria-pressed", String(listMode === "wishlist"));
+    $("ft-wishlist-count").textContent = wishlist.length;
     $("ft-visible-count").textContent = shown.length;
-    if (!shown.length) ui.list.append(make("p", "ft-empty", "没有符合条件的城市。调整关键词或年份试试。"));
+    if (!shown.length) ui.list.append(make("p", "ft-empty", listMode === "wishlist" && !wishlist.length && !query ? "还没有想去的城市。把心愿添加到清单里吧。" : "没有符合条件的城市。调整关键词或年份试试。"));
     shown.forEach((city, i) => {
       const card = make("button", "ft-city-card"); card.type = "button"; card.classList.toggle("is-selected", selected === city.id);
       const head = make("span", "ft-city-card-top"); head.append(make("span", "ft-city-no", String(i + 1).padStart(2, "0")), make("strong", "ft-city-name", city.name));
       if (city.demo) head.append(make("span", "ft-demo-tag", "演示"));
+      if (city.wishlist) head.append(make("span", "ft-wish-tag", "想去"));
       card.append(head, make("span", "ft-city-meta", subtitle(city))); if (city.date) card.append(make("span", "ft-city-date", city.date));
       card.addEventListener("click", () => select(city.id, true)); ui.list.append(card);
     });
@@ -63,7 +77,7 @@
     visible = until === null ? [...cities] : cities.filter((c) => year(c) === null || year(c) <= until);
     $("ft-city-count").textContent = visible.length;
     $("ft-country-count").textContent = new Set(visible.map((c) => c.countryCode || c.country).filter(Boolean)).size;
-    if (selected && !visible.some((c) => c.id === selected)) { selected = null; details(null); }
+    if (selected && !visible.some((c) => c.id === selected) && !wishlist.some((c) => c.id === selected)) { selected = null; details(null); }
     list(); refreshMap();
   }
   function refreshMap() {
@@ -71,6 +85,7 @@
     map.getSource("footprints").setData(collection());
     const ids = new Set(visible.map((c) => c.id));
     markers.forEach((marker, id) => { marker.hidden = !ids.has(id); marker.classList.toggle("is-selected", id === selected); marker.classList.toggle("ft-marker-distant", map.getZoom() >= 5 && boundaries.has(id)); });
+    wishMarkers.forEach((marker, id) => marker.classList.toggle("is-selected", id === selected));
     for (const layer of ["footprints-fill", "footprints-edge", "footprints-glow"]) if (map.getLayer(layer)) map.setPaintProperty(layer, layer === "footprints-fill" ? "fill-opacity" : "line-opacity", ["case", ["==", ["get", "id"], selected || ""], layer === "footprints-fill" ? 0.65 : 1, ["==", ["get", "id"], hovered || ""], layer === "footprints-fill" ? 0.56 : 0.95, layer === "footprints-fill" ? 0.43 : layer === "footprints-glow" ? 0.22 : 0.8]);
   }
   function boundsFor(city) {
@@ -80,8 +95,8 @@
     return Number.isFinite(west) && east - west < 180 ? [[west, south], [east, north]] : [[city.coordinates[1], city.coordinates[0]], [city.coordinates[1], city.coordinates[0]]];
   }
   function select(id, fly) {
-    const city = visible.find((c) => c.id === id); if (!city) return;
-    selected = id; list(); details(city); refreshMap();
+    const city = visible.find((c) => c.id === id) || wishlist.find((c) => c.id === id); if (!city) return;
+    selected = id; listMode = city.wishlist ? "wishlist" : "visited"; list(); details(city); refreshMap();
     if (fly && ready) map.fitBounds(boundsFor(city), { padding: 70, maxZoom: 9, duration: 700 });
   }
   function fitVisited() {
@@ -161,6 +176,11 @@
           button.addEventListener("click", (event) => { event.stopPropagation(); select(city.id, true); });
           new maplibregl.Marker({ element: button, anchor: "center" }).setLngLat([city.coordinates[1], city.coordinates[0]]).addTo(map); markers.set(city.id, button);
         });
+        wishlist.forEach((city) => {
+          const button = make("button", "ft-world-marker ft-wish-marker"); button.type = "button"; button.setAttribute("aria-label", `查看${city.name}的旅行期待`); button.append(make("span", "ft-world-dot"), make("span", "ft-world-label", city.name));
+          button.addEventListener("click", (event) => { event.stopPropagation(); select(city.id, true); });
+          new maplibregl.Marker({ element: button, anchor: "center" }).setLngLat([city.coordinates[1], city.coordinates[0]]).addTo(map); wishMarkers.set(city.id, button);
+        });
         const markerVisibility = () => markers.forEach((el, id) => { el.classList.toggle("ft-marker-distant", map.getZoom() >= 5 && boundaries.has(id)); });
         map.on("zoom", markerVisibility); markerVisibility(); refreshMap();
       });
@@ -170,11 +190,19 @@
   async function init() {
     status("正在加载地图与足迹…");
     try {
-      const [cityResponse, configResponse] = await Promise.all([fetch(app.dataset.citiesUrl, { cache: "no-cache" }), fetch(app.dataset.configUrl, { cache: "no-cache" })]);
+      const [cityResponse, configResponse, wishlistResponse] = await Promise.all([fetch(app.dataset.citiesUrl, { cache: "no-cache" }), fetch(app.dataset.configUrl, { cache: "no-cache" }), fetch(app.dataset.wishlistUrl, { cache: "no-cache" }).catch(() => null)]);
       if (!cityResponse.ok || !configResponse.ok) throw new Error("数据请求失败");
       const data = await cityResponse.json(), config = await configResponse.json();
       if (!Array.isArray(data)) throw new Error("城市数据格式错误");
       cities = data.filter((c) => c && typeof c.id === "string" && typeof c.name === "string" && Array.isArray(c.coordinates) && c.coordinates.length === 2 && c.coordinates.every(Number.isFinite) && Math.abs(c.coordinates[0]) <= 90 && Math.abs(c.coordinates[1]) <= 180);
+      if (wishlistResponse?.ok) {
+        try {
+          const entries = await wishlistResponse.json();
+          if (!Array.isArray(entries)) throw new Error("Invalid wishlist");
+          const usedIds = new Set(cities.map((city) => city.id));
+          wishlist = entries.filter((c) => c && typeof c.id === "string" && !usedIds.has(c.id) && typeof c.name === "string" && Array.isArray(c.coordinates) && c.coordinates.length === 2 && c.coordinates.every(Number.isFinite) && Math.abs(c.coordinates[0]) <= 90 && Math.abs(c.coordinates[1]) <= 180 && (usedIds.add(c.id), true)).map((c) => ({ ...c, wishlist: true }));
+        } catch { ui.setup.textContent = "想去清单格式有误，请检查数据文件。"; ui.setup.hidden = false; }
+      } else { ui.setup.textContent = "想去清单加载失败，请检查数据文件。"; ui.setup.hidden = false; }
       years = [...new Set(cities.map(year).filter((y) => y !== null))].sort((a, b) => a - b);
       ui.slider.max = years.length; ui.slider.value = years.length; $("ft-year-min").textContent = years[0] || "—"; $("ft-timeline").hidden = !years.length;
       $("ft-demo-notice").hidden = !cities.some((c) => c.demo); update();
@@ -196,11 +224,13 @@
         refreshMap();
         if (i + 1 < cities.length) await new Promise((resolve) => setTimeout(resolve, 700));
       }
-      if (failures.length) { ui.setup.textContent = `边界提示：${failures.join("、")}。请检查服务权限、数据文件与网络。`; ui.setup.hidden = false; }
+      if (failures.length) { ui.setup.textContent = [ui.setup.textContent, `边界提示：${failures.join("、")}。请检查服务权限、数据文件与网络。`].filter(Boolean).join(" "); ui.setup.hidden = false; }
       refreshMap();
     } catch (error) { console.warn("Footprints data error", error); status("足迹数据加载失败，请检查数据文件和网络后刷新。", true); }
   }
   ui.search.addEventListener("input", list); ui.slider.addEventListener("input", update);
+  $("ft-visited-tab").addEventListener("click", () => { listMode = "visited"; list(); });
+  $("ft-wishlist-tab").addEventListener("click", () => { listMode = "wishlist"; list(); });
   $("ft-world-view").addEventListener("click", () => { if (ready) map.flyTo({ center: [0, 20], zoom: 1.2, duration: 700 }); });
   $("ft-fit-visited").addEventListener("click", fitVisited);
   init();

@@ -36,3 +36,15 @@ The Footprints page uses Tianditu's base, Chinese labels and global boundary lay
 The browser application key is configured in `assets/data/travel-config.json` at the site owner's request and is public to visitors. Use a browser-only key, restrict its allowed domains if the provider supports this, and monitor its quota. The site is static and has no server-side secret. An absent key leaves the map disabled and the city list usable.
 
 The page loads MapLibre GL JS 5.24.0's CSP build from jsDelivr and its matching same-origin worker. The map does not require Blob workers or `unsafe-eval`; the deployed CSP must allow HTTPS connections and images from Tianditu. Verify actual response headers after deployment. Check the exact map service, current map approval number, attribution, usage terms and any requirements for the publicly displayed overlay with the provider or competent authority before publication. The demo polygons are not proof of map compliance.
+
+## City stories and wishlist
+
+Add `story`, `favoriteFood`, or `favoriteMemory` as optional text fields in `assets/data/visited-cities.json`. Selecting a city on the map or in the list displays its story; existing `description` remains supported. Do not insert placeholder anecdotes as real memories.
+
+Add places you want to visit to `assets/data/wishlist-cities.json`, for example:
+
+```json
+[{ "id": "wish-example", "name": "Example", "country": "Country", "countryCode": "XX", "region": "", "coordinates": [0, 0], "story": "Why I want to go" }]
+```
+
+This is a schema example, not an actual destination. Replace all values with real ones. IDs must be unique across both lists, and coordinates are latitude then longitude. Wishlist places use amber markers, remain separate from visited counts and year filtering, and can be selected for details. They do not automatically create or highlight a boundary. Changes require editing the JSON and redeploying; there is no public website editor or database.

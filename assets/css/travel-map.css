@@ -184,3 +184,16 @@
 
 #travel-app .ft-world-marker.ft-marker-distant { opacity: 0; pointer-events: none; }
 #travel-app .ft-world-marker.is-selected .ft-world-dot { background: #fff; transform: scale(1.35); }
+
+#travel-app .ft-list-switch { display: flex; gap: 6px; margin: 0 0 12px; padding: 4px; background: #142838; border: 1px solid #304d61; border-radius: 10px; }
+#travel-app .ft-list-switch button { flex: 1; border: 0; border-radius: 7px; padding: 8px; background: transparent; color: #a5bac9; cursor: pointer; font-size: .76rem; }
+#travel-app .ft-list-switch button.is-active { background: #235064; color: #e9fcff; }
+#travel-app .ft-list-switch button:focus-visible { outline: 2px solid #78f4ff; outline-offset: 2px; }
+#travel-app .ft-wish-tag { font-size: .65rem; color: #ffd18a; border: 1px solid #ac8048; border-radius: 999px; padding: 1px 7px; }
+#travel-app .ft-wish-legend-dot { width: 10px; height: 10px; border: 2px solid #ffe0a2; border-radius: 50%; background: #e9a640; margin-left: 4px; }
+#travel-app .ft-wish-marker .ft-world-dot { background: #e9a640; border-color: #fff0cd; box-shadow: 0 0 8px #efb454, 0 0 16px #efb45499; }
+#travel-app .ft-wish-marker.is-selected .ft-world-dot { background: #fff3d5; }
+#travel-app .ft-story { margin-top: 12px; }
+#travel-app .ft-story-heading { margin: 0; color: #80dfe7; font-size: .73rem; font-weight: 700; }
+#travel-app .ft-story .ft-detail-description { margin-top: 5px; }
+#travel-app .ft-story-extra { margin: 7px 0 0; font-size: .75rem; color: #b5cdd9; line-height: 1.6; }

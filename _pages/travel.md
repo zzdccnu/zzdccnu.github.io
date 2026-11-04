@@ -8,10 +8,11 @@ nav_order: 4
 ---
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
-<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=5.1.0">
+<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=5.2.0">
 
 <div id="travel-app" class="ft-app"
      data-cities-url="{{ '/assets/data/visited-cities.json' | relative_url }}"
+     data-wishlist-url="{{ '/assets/data/wishlist-cities.json' | relative_url }}"
      data-config-url="{{ '/assets/data/travel-config.json' | relative_url }}"
      data-baseurl="{{ site.baseurl }}"
      data-worker-url="{{ '/assets/js/maplibre-gl-csp-worker-5.24.0.min.js' | relative_url }}">
@@ -35,7 +36,7 @@ nav_order: 4
       <div id="ft-world-map" class="ft-map-canvas" aria-label="天地图全球地图"></div>
 
       <div class="ft-map-top">
-        <div class="ft-legend"><span class="ft-legend-dot"></span> Visited areas</div>
+        <div class="ft-legend"><span class="ft-legend-dot"></span> 已到访 <span class="ft-wish-legend-dot"></span> 想去</div>
         <div class="ft-map-actions">
           <button id="ft-world-view" class="ft-map-action" type="button">世界</button>
           <button id="ft-fit-visited" class="ft-map-action" type="button">查看全部足迹</button>
@@ -51,6 +52,10 @@ nav_order: 4
 
     <aside class="ft-sidebar" aria-label="城市列表和旅行记录">
       <div class="ft-sidebar-heading"><div><h3>Places I've been</h3><p>探索我的城市足迹</p></div><span id="ft-visible-count" class="ft-visible-count">0</span></div>
+      <div class="ft-list-switch" role="group" aria-label="选择城市清单">
+        <button type="button" id="ft-visited-tab" class="is-active" aria-pressed="true">已到访</button>
+        <button type="button" id="ft-wishlist-tab" aria-pressed="false">想去 <span id="ft-wishlist-count">0</span></button>
+      </div>
       <label class="ft-sr-only" for="ft-search">搜索城市、国家或旅行故事</label>
       <input id="ft-search" class="ft-search" type="search" placeholder="搜索城市 / 国家 / 关键词…" autocomplete="off">
       <div id="ft-city-list" class="ft-city-list" aria-label="城市列表"></div>
@@ -61,4 +66,4 @@ nav_order: 4
 </div>
 
 <script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl-csp.js"></script>
-<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=5.1.0"></script>
+<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=5.2.0"></script>

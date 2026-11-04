@@ -181,5 +181,18 @@
     ],
     "adcode": "320100",
     "photos": []
+  },
+  {
+    "id": "shangrao",
+    "name": "上饶",
+    "country": "中国",
+    "countryCode": "CN",
+    "region": "江西省",
+    "coordinates": [
+      28.4548,
+      117.9436
+    ],
+    "adcode": "361100",
+    "photos": []
   }
 ]
