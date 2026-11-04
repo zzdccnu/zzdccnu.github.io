@@ -8,12 +8,13 @@ nav_order: 4
 ---
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
-<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=4.0.0">
+<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=4.0.1">
 
 <div id="travel-app" class="ft-app"
      data-cities-url="{{ '/assets/data/visited-cities.json' | relative_url }}"
      data-config-url="{{ '/assets/data/travel-config.json' | relative_url }}"
-     data-baseurl="{{ site.baseurl }}">
+     data-baseurl="{{ site.baseurl }}"
+     data-worker-url="{{ '/assets/js/maplibre-gl-csp-worker-5.24.0.min.js' | relative_url }}">
   <header class="ft-header">
     <div class="ft-intro">
       <p class="ft-kicker">THE WORLD IS A BOOK · MY FOOTPRINTS</p>
@@ -59,5 +60,5 @@ nav_order: 4
   <p class="ft-attribution-note">底图：<a href="https://openfreemap.org/">OpenFreeMap</a> / <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>。边界来源与许可见 <a href="{{ '/assets/data/travel-boundaries/README_SOURCES.md' | relative_url }}">边界说明</a>；仅供展示，不代表法定行政区划。</p>
 </div>
 
-<script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=4.0.0"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl-csp.js"></script>
+<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=4.0.1"></script>

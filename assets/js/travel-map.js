@@ -94,6 +94,8 @@
   function startMap(style) {
     if (!window.maplibregl || typeof window.maplibregl.Map !== "function") { status("地图组件加载失败，请检查网络或浏览器设置；城市列表仍可使用。", true); return; }
     try {
+      if (typeof maplibregl.setWorkerUrl !== "function") throw new Error("MapLibre CSP worker API unavailable");
+      maplibregl.setWorkerUrl(new URL(app.dataset.workerUrl, location.href).href);
       map = new maplibregl.Map({ container: "ft-world-map", style, center: [105, 25], zoom: 1.5, minZoom: 1, maxZoom: 16, renderWorldCopies: false });
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
       const timer = setTimeout(() => { if (!ready) status("地图加载超时，请检查网络或内容安全策略后刷新；城市列表仍可使用。", true); }, 15000);
