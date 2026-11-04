@@ -1,4 +1,4 @@
-/* Footprints v3 — dual engine, AMap China + MapLibre world. */
+/* Footprints map and sidebar. */
 #travel-app.ft-app {
   box-sizing: border-box;
   position: relative;
@@ -128,14 +128,13 @@
   #travel-app *, #travel-app *::before, #travel-app *::after { transition-duration: 0s !important; }
 }
 
-/* === v3 dual-engine overlays === */
+/* MapLibre overlays. */
 #travel-app .ft-map-frame { background: #091c29; }
 #travel-app .ft-map-canvas {
   position: absolute; inset: 0; width: 100%; height: 100%;
   overflow: hidden; background: #102634;
 }
 #travel-app .ft-map-canvas[hidden] { display: none !important; }
-#travel-app #ft-china-map { z-index: 1; }
 #travel-app #ft-world-map { z-index: 1; }
 #travel-app .ft-map-top, #travel-app .ft-timeline, #travel-app .ft-map-status { z-index: 710; }
 #travel-app .ft-setup-notice {
@@ -177,16 +176,11 @@
 #travel-app .maplibregl-ctrl-group { background: #102e40; border: 1px solid #2b5368; }
 #travel-app .maplibregl-ctrl-group button { background-color: #102e40; }
 #travel-app .maplibregl-ctrl-group button:hover { background-color: #205069; }
-/* Only raster pixels are inverted: city GeoJSON and markers keep the correct cyan color. */
-#travel-app .ft-world-fallback .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) saturate(.75) brightness(.82) contrast(1.07);
-}
-#travel-app .ft-world-fallback .leaflet-control-container .leaflet-control-zoom { margin-bottom: 145px; }
-#travel-app .ft-world-fallback .leaflet-container { background: #0d2535; }
-#travel-app .ft-map-canvas .amap-logo,
-#travel-app .ft-map-canvas .amap-copyright { z-index: 500; }
 @media (max-width: 530px) {
   #travel-app .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { margin-bottom: 130px; margin-right: 8px; }
   #travel-app .ft-world-fallback .leaflet-control-container .leaflet-control-zoom { margin-bottom: 130px; }
   #travel-app .ft-setup-notice { font-size: .72rem; }
 }
+
+#travel-app .ft-world-marker.ft-marker-distant { opacity: 0; pointer-events: none; }
+#travel-app .ft-world-marker.is-selected .ft-world-dot { background: #fff; transform: scale(1.35); }
