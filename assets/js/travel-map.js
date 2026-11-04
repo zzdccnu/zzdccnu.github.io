@@ -1,4 +1,4 @@
-/* Footprints: one MapLibre map, backed by OpenFreeMap and local GeoJSON. */
+/* Footprints: MapLibre and Tianditu, with local GeoJSON fallback. */
 (() => {
   "use strict";
   const app = document.getElementById("travel-app");
@@ -70,7 +70,7 @@
     if (!ready) return;
     map.getSource("footprints").setData(collection());
     const ids = new Set(visible.map((c) => c.id));
-    markers.forEach((marker, id) => { marker.hidden = !ids.has(id); marker.classList.toggle("is-selected", id === selected); });
+    markers.forEach((marker, id) => { marker.hidden = !ids.has(id); marker.classList.toggle("is-selected", id === selected); marker.classList.toggle("ft-marker-distant", map.getZoom() >= 5 && boundaries.has(id)); });
     for (const layer of ["footprints-fill", "footprints-edge", "footprints-glow"]) if (map.getLayer(layer)) map.setPaintProperty(layer, layer === "footprints-fill" ? "fill-opacity" : "line-opacity", ["case", ["==", ["get", "id"], selected || ""], layer === "footprints-fill" ? 0.65 : 1, ["==", ["get", "id"], hovered || ""], layer === "footprints-fill" ? 0.56 : 0.95, layer === "footprints-fill" ? 0.43 : layer === "footprints-glow" ? 0.22 : 0.8]);
   }
   function boundsFor(city) {
@@ -91,6 +91,53 @@
     if (east - west > 180) { map.flyTo({ center: [0, 20], zoom: 1.2 }); return; }
     map.fitBounds([[west, Math.min(...bounds.map((b) => b[0][1]))], [east, Math.max(...bounds.map((b) => b[1][1]))]], { padding: 70, maxZoom: 8, duration: 700 });
   }
+  // Parse WKT polygons without joining separate islands or discarding interior rings.
+  function parseBoundary(wkt) {
+    const tokens = String(wkt).match(/[A-Za-z]+|[-+]?(?:\d*\.)?\d+(?:[eE][-+]?\d+)?|[(),]/g) || [];
+    let i = 0; const type = (tokens[i++] || "").toUpperCase();
+    if (!["POLYGON", "MULTIPOLYGON"].includes(type)) throw new Error("Unsupported boundary geometry");
+    function group() {
+      if (tokens[i++] !== "(") throw new Error("Invalid WKT");
+      const parts = [];
+      if (tokens[i] === "(") {
+        do { parts.push(group()); if (tokens[i] !== ",") break; i++; } while (true);
+      } else {
+        do {
+          const lng = Number(tokens[i++]), lat = Number(tokens[i++]);
+          if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lng) > 180 || Math.abs(lat) > 90) throw new Error("Invalid boundary coordinate");
+          parts.push([lng, lat]); if (tokens[i] !== ",") break; i++;
+        } while (true);
+      }
+      if (tokens[i++] !== ")") throw new Error("Invalid WKT");
+      return parts;
+    }
+    const coordinates = group();
+    if (i !== tokens.length) throw new Error("Invalid WKT trailing content");
+    return { type: "Feature", properties: {}, geometry: { type: type === "POLYGON" ? "Polygon" : "MultiPolygon", coordinates } };
+  }
+  async function tiandituBoundary(city, key) {
+    const query = new URLSearchParams({ keyword: city.adcode ? `156${city.adcode}` : city.name, childLevel: "0", extensions: "true", tk: key });
+    let response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(`https://api.tianditu.gov.cn/v2/administrative?${query}`, { signal: AbortSignal.timeout(12000) });
+      if (response.status !== 429 || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+    }
+    if (!response.ok) throw new Error("Boundary request failed");
+    const data = await response.json();
+    const target = (data.data?.district || []).find((item) => city.adcode ? String(item.gb) === `156${city.adcode}` : item.name === city.name);
+    if (data.status !== 200 || !target?.boundary) throw new Error("Boundary unavailable");
+    return parseBoundary(target.boundary);
+  }
+  function tiandituStyle(key) {
+    const tile = (layer) => `https://t0.tianditu.gov.cn/DataServer?T=${layer}&x={x}&y={y}&l={z}&tk=${encodeURIComponent(key)}`;
+    const source = (layer) => ({ type: "raster", tiles: [tile(layer)], tileSize: 256, minzoom: 1, maxzoom: 18 });
+    return { version: 8, sources: { base: source("vec_w"), borders: source("ibo_w"), labels: source("cva_w") }, layers: [
+      { id: "base", type: "raster", source: "base" },
+      { id: "borders", type: "raster", source: "borders" },
+      { id: "labels", type: "raster", source: "labels" },
+    ] };
+  }
   function startMap(style) {
     if (!window.maplibregl || typeof window.maplibregl.Map !== "function") { status("地图组件加载失败，请检查网络或浏览器设置；城市列表仍可使用。", true); return; }
     try {
@@ -102,7 +149,7 @@
       map.on("load", () => {
         clearTimeout(timer); ready = true; status("");
         map.addSource("footprints", { type: "geojson", data: collection() });
-        const before = map.getStyle().layers.find((layer) => layer.type === "symbol")?.id;
+        const before = map.getLayer("labels") ? "labels" : undefined;
         map.addLayer({ id: "footprints-fill", type: "fill", source: "footprints", paint: { "fill-color": "#16c7d8", "fill-opacity": 0.43 } }, before);
         map.addLayer({ id: "footprints-glow", type: "line", source: "footprints", paint: { "line-color": "#16c7d8", "line-width": 5, "line-blur": 3, "line-opacity": 0.22 } }, before);
         map.addLayer({ id: "footprints-edge", type: "line", source: "footprints", paint: { "line-color": "#78f4ff", "line-width": 1.5, "line-opacity": 0.8 } }, before);
@@ -123,20 +170,33 @@
   async function init() {
     status("正在加载地图与足迹…");
     try {
-      const [cityResponse, configResponse] = await Promise.all([fetch(app.dataset.citiesUrl), fetch(app.dataset.configUrl)]);
+      const [cityResponse, configResponse] = await Promise.all([fetch(app.dataset.citiesUrl, { cache: "no-cache" }), fetch(app.dataset.configUrl, { cache: "no-cache" })]);
       if (!cityResponse.ok || !configResponse.ok) throw new Error("数据请求失败");
       const data = await cityResponse.json(), config = await configResponse.json();
       if (!Array.isArray(data)) throw new Error("城市数据格式错误");
       cities = data.filter((c) => c && typeof c.id === "string" && typeof c.name === "string" && Array.isArray(c.coordinates) && c.coordinates.length === 2 && c.coordinates.every(Number.isFinite) && Math.abs(c.coordinates[0]) <= 90 && Math.abs(c.coordinates[1]) <= 180);
       years = [...new Set(cities.map(year).filter((y) => y !== null))].sort((a, b) => a - b);
       ui.slider.max = years.length; ui.slider.value = years.length; $("ft-year-min").textContent = years[0] || "—"; $("ft-timeline").hidden = !years.length;
-      $("ft-demo-notice").hidden = !cities.some((c) => c.demo); update(); startMap(config.worldStyle || "https://tiles.openfreemap.org/styles/dark");
+      $("ft-demo-notice").hidden = !cities.some((c) => c.demo); update();
+      const key = typeof config.tiandituKey === "string" ? config.tiandituKey.trim() : "";
+      if (key) startMap(tiandituStyle(key));
+      else status("尚未配置天地图 Key；城市列表仍可使用。", true);
       const failures = [];
-      await Promise.all(cities.map(async (city) => {
-        if (!city.boundary) return;
-        try { const url = asset(city.boundary); if (!url) throw new Error("URL"); const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const geo = await response.json(); const parts = geo.type === "FeatureCollection" ? geo.features : [geo]; if (!parts.length || !parts.every((f) => ["Polygon", "MultiPolygon"].includes((f.geometry || f)?.type))) throw new Error("GeoJSON"); boundaries.set(city.id, geo); } catch { failures.push(city.name); }
-      }));
-      if (failures.length) { ui.setup.textContent = `以下城市的边界加载失败，地图将使用标记：${failures.join("、")}。请检查边界文件与网络。`; ui.setup.hidden = false; }
+      const loadBoundary = async (city) => {
+        if (key && (city.countryCode === "CN" || city.country === "中国")) {
+          try { boundaries.set(city.id, await tiandituBoundary(city, key)); return; }
+          catch { failures.push(`${city.name}（天地图边界未加载，已尝试本地数据）`); }
+        }
+        if (!city.boundary) { failures.push(`${city.name}（没有边界，使用标记）`); return; }
+        try { const url = asset(city.boundary); if (!url) throw new Error("URL"); const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const geo = await response.json(); const parts = geo.type === "FeatureCollection" ? geo.features : [geo]; if (!parts.length || !parts.every((f) => ["Polygon", "MultiPolygon"].includes((f.geometry || f)?.type))) throw new Error("GeoJSON"); boundaries.set(city.id, geo); } catch { failures.push(`${city.name}（本地边界未加载，使用标记）`); }
+      };
+      // Pace requests; the administrative endpoint can rate-limit concurrent calls.
+      for (let i = 0; i < cities.length; i++) {
+        await loadBoundary(cities[i]);
+        refreshMap();
+        if (i + 1 < cities.length) await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+      if (failures.length) { ui.setup.textContent = `边界提示：${failures.join("、")}。请检查服务权限、数据文件与网络。`; ui.setup.hidden = false; }
       refreshMap();
     } catch (error) { console.warn("Footprints data error", error); status("足迹数据加载失败，请检查数据文件和网络后刷新。", true); }
   }

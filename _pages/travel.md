@@ -2,13 +2,13 @@
 layout: page
 title: Footprints
 permalink: /travel/
-description: 我的城市足迹 · 全球开源地图
+description: 我的城市足迹 · 天地图
 nav: true
 nav_order: 4
 ---
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
-<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=4.0.1">
+<link rel="stylesheet" href="{{ '/assets/css/travel-map.css' | relative_url }}?v=5.1.0">
 
 <div id="travel-app" class="ft-app"
      data-cities-url="{{ '/assets/data/visited-cities.json' | relative_url }}"
@@ -32,7 +32,7 @@ nav_order: 4
 
   <div class="ft-layout">
     <section class="ft-map-frame" aria-label="旅行足迹地图">
-      <div id="ft-world-map" class="ft-map-canvas" aria-label="全球开源地图"></div>
+      <div id="ft-world-map" class="ft-map-canvas" aria-label="天地图全球地图"></div>
 
       <div class="ft-map-top">
         <div class="ft-legend"><span class="ft-legend-dot"></span> Visited areas</div>
@@ -57,8 +57,8 @@ nav_order: 4
       <section id="ft-detail" class="ft-detail" aria-live="polite"><p class="ft-empty">选择地图上的区域或右侧城市，查看旅行故事。</p></section>
     </aside>
   </div>
-  <p class="ft-attribution-note">底图：<a href="https://openfreemap.org/">OpenFreeMap</a> / <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>。边界来源与许可见 <a href="{{ '/assets/data/travel-boundaries/README_SOURCES.md' | relative_url }}">边界说明</a>；仅供展示，不代表法定行政区划。</p>
+  <p class="ft-attribution-note">底图及行政区划服务：<a href="https://www.tianditu.gov.cn/">天地图</a>。使用前请核实所选服务的审图号、授权和足迹图层的公开展示要求；本地示例边界来源见 <a href="{{ '/assets/data/travel-boundaries/README_SOURCES.md' | relative_url }}">边界说明</a>。</p>
 </div>
 
 <script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl-csp.js"></script>
-<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=4.0.1"></script>
+<script defer src="{{ '/assets/js/travel-map.js' | relative_url }}?v=5.1.0"></script>
