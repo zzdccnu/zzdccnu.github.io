@@ -1,4 +1,4 @@
-/* Footprints v3 — dual engine, AMap China + MapLibre world. */
+/* Footprints map and sidebar. */
 #travel-app.ft-app {
   box-sizing: border-box;
   position: relative;
@@ -39,7 +39,7 @@
 #travel-app .ft-legend-dot { display: block; width: 10px; height: 10px; border-radius: 100%; background: #26e0eb; box-shadow: 0 0 10px #02c9dc, 0 0 17px #17d7e5; }
 #travel-app .ft-map-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
 #travel-app button.ft-map-action { padding: 10px 12px !important; margin: 0 !important; min-width: 44px; cursor: pointer; font-family: inherit; font-weight: 620; text-transform: none; }
-#travel-app button.ft-map-action:hover, #travel-app button.ft-map-action.is-active { border-color: #44d9e9 !important; background: #195169e8 !important; color: #a8fbff !important; }
+#travel-app button.ft-map-action:hover { border-color: #44d9e9 !important; background: #195169e8 !important; color: #a8fbff !important; }
 #travel-app .ft-map-status { position: absolute; bottom: 138px; left: 50%; transform: translateX(-50%); z-index: 890; max-width: calc(100% - 24px); padding: 10px 14px; background: #0c2435e9; border: 1px solid #36657b; border-radius: 9px; color: #e6f7fc; text-align: center; font-size: .72rem; pointer-events: none; }
 #travel-app .ft-map-status.is-error { color: #ffcfb6; border-color: #a97456; }
 #travel-app .ft-timeline { position: absolute; bottom: 16px; left: 15px; right: 15px; z-index: 800; background: #0b2233e8; backdrop-filter: blur(12px); border: 1px solid #365669; border-radius: 12px; padding: 12px 17px 9px; color: #d5ecf3; box-shadow: 0 8px 22px #0003; }
@@ -109,14 +109,13 @@
   #travel-app *, #travel-app *::before, #travel-app *::after { transition-duration: 0s !important; }
 }
 
-/* === v3 dual-engine overlays === */
+/* MapLibre overlays. */
 #travel-app .ft-map-frame { background: #091c29; }
 #travel-app .ft-map-canvas {
   position: absolute; inset: 0; width: 100%; height: 100%;
   overflow: hidden; background: #102634;
 }
 #travel-app .ft-map-canvas[hidden] { display: none !important; }
-#travel-app #ft-china-map { z-index: 1; }
 #travel-app #ft-world-map { z-index: 1; }
 #travel-app .ft-map-top, #travel-app .ft-timeline, #travel-app .ft-map-status { z-index: 710; }
 #travel-app .ft-setup-notice {
@@ -144,9 +143,10 @@
   color: #f0fcff; font-weight: 730; font-size: 12px;
   text-shadow: 0 1px 4px #06121e, 0 1px 8px #06121e;
 }
-#travel-app .ft-world-marker.show-label .ft-world-label { display: block; }
 #travel-app .ft-world-marker:hover .ft-world-dot { transform: scale(1.18); }
-/* Only raster pixels are inverted: city GeoJSON and markers keep the correct cyan color. */
 @media (max-width: 530px) {
   #travel-app .ft-setup-notice { font-size: .72rem; }
 }
+
+#travel-app .ft-world-marker.ft-marker-distant { opacity: 0; pointer-events: none; }
+#travel-app .ft-world-marker.is-selected .ft-world-dot { background: #fff; transform: scale(1.35); }
