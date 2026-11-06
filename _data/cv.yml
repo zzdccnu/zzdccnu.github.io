@@ -111,12 +111,25 @@ cv:
         url: http://netinfo-security.org/CN/10.3969/j.issn.1671-1122.2025.09.006
         summary: 本人第一篇论文，导师为第一作者，很荣幸能发表在CCF-T3级期刊上。
 
-      - title: 'StegaSense: A Lightweight Near-Lossless Steganographic Defense Against Model Inversion in Fingerprint Compressive Sensing'
+      - title: 基于隐写术的指纹索引劫持防御方法
         authors:
-          - ZHU Zhengdao
-        publisher: 软件学报(CCF-T1)
-        releaseDate: 已录用
-        summary: 本人第二篇论文，但是是本人第一个参与的科研项目，目前投稿至CCF-T1期刊。
+          - 刘会
+          - 杜红琴
+          - 朱正道
+          - 等
+        publisher: 软件学报 (CCF T1)
+        releaseDate: 2026
+        summary: 已接受。
+
+      - title: 基于隐写术的指纹劫持防御方法、系统、设备及存储介质
+        authors:
+          - 刘会
+          - 杜红琴
+          - 朱正道
+          - 王敬华
+        publisher: 中国专利申请
+        releaseDate: 2025-11-18
+        summary: 申请号 CN202510911859.6。
 
       - title: Agent-Driven Multi-Semantic Fusion for Jailbreak Prompt Detection in Large Language Models
         authors:
